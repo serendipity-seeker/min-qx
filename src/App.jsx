@@ -62,6 +62,7 @@ const App = () => {
 
   const [seed, setSeed] = useState("");
   const [showSeed, setShowSeed] = useState(false);
+  const [latestTick, setLatestTick] = useState("LATEST TICK:");
   const [log, setLog] = useState("LOG: ");
 
   // const p = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -70,9 +71,10 @@ const App = () => {
     let intervalId;
 
     if (id.length > 0) {
-      intervalId = setInterval(() => {
+      intervalId = setInterval(async () => {
         qBalance();
         qOwnedAssets();
+        setLatestTick(`LATEST TICK: ${await qFetchLatestTick()}`);
       }, 3000);
     }
 
@@ -90,7 +92,7 @@ const App = () => {
   const createQXOrderPayload = (issuer, assetName, price, numberOfShares) => {
     return new QubicTransferQXOrderPayload({
       issuer: new PublicKey(issuer),
-      assetName: new Long(assetName),
+      assetName: new Long(valueOfAssetName(assetName)),
       price: new Long(price),
       numberOfShares: new Long(numberOfShares),
     });
@@ -236,10 +238,11 @@ const App = () => {
 
     //Get latest tick
     const latestTick = await qFetchLatestTick();
+    const orderTick = latestTick + 5;
     //Assemble transaction payload
     const orderPayload = createQXOrderPayload(
       ISSUER.get(asset),
-      valueOfAssetName(asset),
+      asset,
       price,
       amount
     );
@@ -250,7 +253,7 @@ const App = () => {
     const transaction = await createQXOrderTransaction(
       id,
       seed,
-      latestTick + 5,
+      orderTick,
       orderPayload,
       type === "buy"
         ? QubicDefinitions.QX_ADD_BID_ORDER
@@ -264,7 +267,7 @@ const App = () => {
     setLog(
       `LOG: ${
         type === "buy" ? "Buying" : "Selling"
-      } ${amount} asset(s) of ${asset} for ${price} qu per token`
+      } ${amount} asset(s) of ${asset} for ${price} qu per token on tick ${orderTick}`
     );
     return "OK";
   };
@@ -447,6 +450,8 @@ const App = () => {
           ))}
           <Divider sx={{ bgcolor: "black" }} />
           {log}
+          <Divider sx={{ bgcolor: "black" }} />
+          {latestTick}
         </List>
       ) : (
         <Iframe
