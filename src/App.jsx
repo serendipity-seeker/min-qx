@@ -33,6 +33,7 @@ import { QubicDefinitions } from "@qubic-lib/qubic-ts-library/dist/QubicDefiniti
 import { PublicKey } from "@qubic-lib/qubic-ts-library/dist/qubic-types/PublicKey.js";
 import { Long } from "@qubic-lib/qubic-ts-library/dist/qubic-types/Long.js";
 
+const apiURL = "https://api.qubic.org";
 const baseURL = "https://rpc.qubic.org";
 const tradingURL = "https://qxinfo.qubic.org/#/assets";
 
@@ -67,26 +68,26 @@ const App = () => {
 
   // const p = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
-  useEffect(() => {
-    let intervalId;
-
-    if (id.length > 0) {
-      intervalId = setInterval(async () => {
-        qBalance();
-        qOwnedAssets();
-        setLatestTick(`LATEST TICK: ${await qFetchLatestTick()}`);
-      }, 3000);
-    }
-
-    // Cleanup the interval on component unmount or when isLoggedIn changes
-    return () => clearInterval(intervalId);
-  }, [id]); // Depend on isLoggedIn
-
   const valueOfAssetName = (asset) => {
     const bytes = new Uint8Array(8);
     bytes.set(new TextEncoder().encode(asset));
 
     return new DataView(bytes.buffer).getInt32(0, true);
+  };
+
+  const fetchAssetOrders = async (assetName, issuerID, type, offset) => {
+    const response = await fetch(
+      apiURL +
+        `/v1/qx/getAsset${type}Orders?assetName=${assetName}&issuerId=${issuerID}&offset=${offset}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      }
+    );
+    return response;
   };
 
   const createQXOrderPayload = (issuer, assetName, price, numberOfShares) => {
@@ -153,6 +154,22 @@ const App = () => {
     setBalance(balanceObject.balance);
     console.log("balance: ", balanceObject.balance);
     return data["balance"];
+  };
+
+  const qFetchAssetOrders = async () => {
+    // get destination address
+    const info = await fetchAssetOrders(
+      "CFB",
+      "CFBMEMZOIDEXQAUXYYSZIURADQLAPWPMNJXQSNVQZAHYVOPYUKKJBJUCTVJL",
+      "Ask",
+      0
+    );
+    console.log(info);
+    const shortInfo = info.orders.slice(0, 10);
+    // Convert the object to a JSON string
+    const objectString = JSON.stringify(shortInfo, null, 2); // Pretty print with 2 spaces
+
+    console.log(objectString);
   };
 
   const qFetchLatestTick = async () => {
@@ -238,7 +255,7 @@ const App = () => {
 
     //Get latest tick
     const latestTick = await qFetchLatestTick();
-    const orderTick = latestTick + 5;
+    const orderTick = latestTick + 10;
     //Assemble transaction payload
     const orderPayload = createQXOrderPayload(
       ISSUER.get(asset),
@@ -296,6 +313,22 @@ const App = () => {
   };
 
   const items = [...ISSUER.keys()];
+
+  useEffect(() => {
+    let intervalId;
+
+    if (id.length > 0) {
+      intervalId = setInterval(async () => {
+        qBalance();
+        qOwnedAssets();
+        setLatestTick(`LATEST TICK: ${await qFetchLatestTick()}`);
+        await qFetchAssetOrders();
+      }, 3000);
+    }
+
+    // Cleanup the interval on component unmount or when isLoggedIn changes
+    return () => clearInterval(intervalId);
+  }, [id]); // Depend on isLoggedIn
 
   return (
     <Box sx={{ backgroundColor: "#aacc99", width: "100vw", height: "100vh" }}>
