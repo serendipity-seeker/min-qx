@@ -11,11 +11,23 @@ import {
   InputAdornment,
   IconButton,
 } from "@mui/material";
+import {
+  AppBar,
+  Tabs,
+  Tab,
+  Select,
+  MenuItem,
+  InputLabel,
+  FormControl,
+  ListItemButton,
+  Checkbox,
+  ListItemIcon,
+} from "@mui/material";
+
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 import CircleIcon from "@mui/icons-material/Circle";
-import RefreshIcon from "@mui/icons-material/Refresh";
 import Iframe from "react-iframe";
 import React, { useState, useEffect } from "react";
 
@@ -65,6 +77,22 @@ const App = () => {
   const [showSeed, setShowSeed] = useState(false);
   const [latestTick, setLatestTick] = useState("LATEST TICK:");
   const [log, setLog] = useState("LOG: ");
+  const [orderTick, setOrderTick] = useState(0);
+  const [showLog, setShowLog] = useState(false);
+
+  const [askOrders, setAskOrders] = useState([]);
+  const [bidOrders, setBidOrders] = useState([]);
+  const [tabIndex, setTabIndex] = useState(7);
+
+  useEffect(() => {
+    //Implementing the setInterval method
+    const interval = setInterval(() => {
+      setShowLog(latestTick < orderTick);
+    }, 2000);
+
+    //Clearing the interval
+    return () => clearInterval(interval);
+  }, []);
 
   // const p = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
@@ -150,26 +178,22 @@ const App = () => {
     });
 
     const data = await response.json();
-    const balanceObject = data["balance"];
-    setBalance(balanceObject.balance);
-    console.log("balance: ", balanceObject.balance);
     return data["balance"];
   };
 
-  const qFetchAssetOrders = async () => {
+  const qFetchAssetOrders = async (assetName, type) => {
     // get destination address
-    const info = await fetchAssetOrders(
-      "CFB",
-      "CFBMEMZOIDEXQAUXYYSZIURADQLAPWPMNJXQSNVQZAHYVOPYUKKJBJUCTVJL",
-      "Ask",
+    const response = await fetchAssetOrders(
+      assetName,
+      ISSUER.get(assetName),
+      type,
       0
     );
-    console.log(info);
-    const shortInfo = info.orders.slice(0, 10);
-    // Convert the object to a JSON string
-    const objectString = JSON.stringify(shortInfo, null, 2); // Pretty print with 2 spaces
+    const data = await response.json();
 
-    console.log(objectString);
+    const objectString = JSON.stringify(data, null, 2); // Pretty print with 2 spaces
+    // console.log(objectString);
+    return type === "Ask" ? data["orders"].reverse() : data["orders"];
   };
 
   const qFetchLatestTick = async () => {
@@ -195,30 +219,11 @@ const App = () => {
     });
 
     const data = await response.json();
-    // console.log(data["ownedAssets"]); // data.issuedAsset.name = QFT .. data.numberOfUnits
-    console.log(
-      "assets",
-      new Map(
-        data["ownedAssets"].map((el) => [
-          el.data.issuedAsset.name,
-          el.data.numberOfUnits,
-        ])
-      )
-    );
-
-    setAssets(
-      new Map(
-        data["ownedAssets"].map((el) => [
-          el.data.issuedAsset.name,
-          el.data.numberOfUnits,
-        ])
-      )
-    );
+    return data["ownedAssets"];
   };
 
   const qLogin = async () => {
     console.log("qlogin");
-    // shell.openExternal("https://www.example.com");
 
     const qubic = await new QubicHelper();
     const qubicPackage = await qubic.createIdPackage(seed);
@@ -227,8 +232,15 @@ const App = () => {
     console.log(qubicPackage.publicId);
     // // const res = await new QubicHelper().createIdPackage(p);
     // // console.log(res.publicId);
-    const balance = await qBalance(ID);
-    await qOwnedAssets(ID);
+    setBalance((await qBalance(ID)).balance);
+    setAssets(
+      new Map(
+        (await qOwnedAssets(ID)).map((el) => [
+          el.data.issuedAsset.name,
+          el.data.numberOfUnits,
+        ])
+      )
+    );
 
     setShowOrders(false);
   };
@@ -243,7 +255,7 @@ const App = () => {
   const qRefresh = async () => {
     console.log("qRefresh");
     setLoadRefresh(true);
-    qBalance();
+    setBalance(await qBalance());
     qOwnedAssets();
     setTimeout(() => {
       setLoadRefresh(false);
@@ -255,7 +267,7 @@ const App = () => {
 
     //Get latest tick
     const latestTick = await qFetchLatestTick();
-    const orderTick = latestTick + 10;
+    setOrderTick(latestTick + 10);
     //Assemble transaction payload
     const orderPayload = createQXOrderPayload(
       ISSUER.get(asset),
@@ -270,7 +282,7 @@ const App = () => {
     const transaction = await createQXOrderTransaction(
       id,
       seed,
-      orderTick,
+      latestTick + 10,
       orderPayload,
       type === "buy"
         ? QubicDefinitions.QX_ADD_BID_ORDER
@@ -312,60 +324,82 @@ const App = () => {
     setShowSeed(!showSeed);
   };
 
-  const items = [...ISSUER.keys()];
-
   useEffect(() => {
     let intervalId;
 
     if (id.length > 0) {
       intervalId = setInterval(async () => {
-        qBalance();
-        qOwnedAssets();
+        setBalance((await qBalance()).balance);
+        setAssets(
+          new Map(
+            (await qOwnedAssets()).map((el) => [
+              el.data.issuedAsset.name,
+              el.data.numberOfUnits,
+            ])
+          )
+        );
+        // setAskOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Ask"));
+        // setBidOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Bid"));
         setLatestTick(`LATEST TICK: ${await qFetchLatestTick()}`);
-        await qFetchAssetOrders();
-      }, 3000);
+        // await qFetchAssetOrders();
+      }, 5000);
     }
 
     // Cleanup the interval on component unmount or when isLoggedIn changes
     return () => clearInterval(intervalId);
   }, [id]); // Depend on isLoggedIn
 
-  return (
-    <Box sx={{ backgroundColor: "#aacc99", width: "100vw", height: "100vh" }}>
-      <CircleIcon sx={{ color: id ? "green" : "red" }}></CircleIcon>
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 50, // Width of the box
-          height: 50, // Height of the box
-          backgroundColor: "#f0f0f0", // Background color
-          borderRadius: "8px", // Rounded corners
-          boxShadow: 2, // Shadow for a lifted effect
-        }}
-      >
-        {loadRefresh ? (
-          <CircularProgress sx={{ fontSize: 30, color: "#1976d2" }} />
-        ) : (
-          <RefreshIcon
-            onClick={() => qRefresh()}
-            sx={{ fontSize: 30, color: "#1976d2" }}
-          />
-        )}
-      </Box>
+  // START
+  const handleChanged = async (event) => {
+    setTabIndex(event.target.value);
+    setAskOrders(await qFetchAssetOrders(tabLabels[event.target.value], "Ask"));
+    setBidOrders(await qFetchAssetOrders(tabLabels[event.target.value], "Bid"));
+  };
 
+  const tabLabels = [...ISSUER.keys()];
+
+  const [selectedAsk, setSelectedAsk] = useState(-1);
+  const [selectedBid, setSelectedBid] = useState(-1);
+
+  return (
+    <>
+      <Box sx={{ width: "100%" }}>
+        {/* <AppBar position="static">
+          <Tabs
+            value={tabIndex}
+            onChange={(e, newValue) => setTabIndex(newValue)}
+          >
+            {tabLabels.map((label, index) => (
+              <Tab label={label} key={index} />
+            ))}
+          </Tabs>
+        </AppBar> */}
+        {/* <Box sx={{ padding: 3 }}>
+          {tabIndex === 0 && <div>Content for Tab 1</div>}
+          {tabIndex === 1 && <div>Content for Tab 2</div>}
+          {tabIndex === 2 && <div>Content for Tab 3</div>}
+        </Box> */}
+      </Box>
       <Typography variant="h6" component="h4">
-        {id ? `${id} connected` : "no ID connected"}
+        <CircleIcon sx={{ color: id ? "green" : "red" }}></CircleIcon>
+        {id ? `ID: ${id}` : " no ID connected"}
       </Typography>
       {id ? (
-        <Typography variant="h6" component="h4">
-          Balance: {balance + " qus"}
-        </Typography>
+        <>
+          <Typography variant="h6" component="h4">
+            BALANCE: {balance + " qus"}
+          </Typography>
+          <Typography variant="h6" component="h4">
+            {tabLabels[tabIndex]}:{" "}
+            {assets.size > 0 && assets.get(tabLabels[tabIndex])
+              ? assets.get(tabLabels[tabIndex])
+              : 0}{" "}
+            assets
+          </Typography>
+        </>
       ) : (
         <></>
       )}
-
       {/* <TextField label="enter seed" variant="outlined" fullWidth /> */}
       {!id ? (
         <>
@@ -402,102 +436,188 @@ const App = () => {
               Logout
             </Button>
           </>
-          <Button
-            variant="outlined"
-            color="primary"
-            onClick={() => setShowOrders(!showOrders)}
-          >
-            {showOrders ? "Assets" : "Orderbooks"}
-          </Button>
         </>
       )}
-
-      {!showOrders ? (
-        <List>
-          <TextField
-            label="Amount"
-            type="text"
-            value={amount}
-            onChange={handleChangeAmount}
-            variant="outlined"
-            inputProps={{
-              pattern: "[0-9]*", // Pattern for numeric input
-              inputMode: "numeric", // Show numeric keyboard on mobile
-            }}
-          />
-          <TextField
-            label="Price"
-            type="text"
-            value={price}
-            onChange={handleChangePrice}
-            variant="outlined"
-            inputProps={{
-              pattern: "[0-9]*", // Pattern for numeric input
-              inputMode: "numeric", // Show numeric keyboard on mobile
-            }}
-          />
-          {items.map((item, index) => (
-            <>
-              <Divider sx={{ bgcolor: "secondary" }} />
-              <ListItem key={index}>
-                <ListItemText primary={item} />
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={() => {
-                    setTradingLink(
-                      `https://qxinfo.qubic.org/#/issuer/${ISSUER.get(
-                        item
-                      )}/asset/${item}/orders`
-                    );
-                    setShowOrders(true);
-                  }}
-                >
-                  Orders
-                </Button>
-                <Button variant="outlined" color="black">
-                  {assets.size > 0 ? (
-                    <ListItemText
-                      primary={assets.get(item) ? assets.get(item) : 0}
-                    />
-                  ) : (
-                    <>0</>
-                  )}
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={() => qOrder(item, "buy")}
-                >
-                  Buy
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="secondary"
-                  onClick={() => qOrder(item, "sell")}
-                >
-                  Sell
-                </Button>
-              </ListItem>
-            </>
+      <FormControl
+        fullWidth
+        variant="outlined"
+        sx={{ paddingTop: 1, marginTop: 2 }}
+      >
+        <InputLabel>Token</InputLabel>
+        <Select value={tabIndex} onChange={handleChanged} label="Select Tab">
+          {tabLabels.map((label, index) => (
+            <MenuItem value={index} key={index}>
+              {label}
+            </MenuItem>
           ))}
-          <Divider sx={{ bgcolor: "black" }} />
-          {log}
-          <Divider sx={{ bgcolor: "black" }} />
-          {latestTick}
-        </List>
-      ) : (
-        <Iframe
-          url={tradingLink}
-          width="100%"
-          height="100%"
-          id=""
-          className=""
-          display="block"
-          position="relative"
+        </Select>
+      </FormControl>
+      <List>
+        <TextField
+          label="Amount"
+          type="text"
+          value={amount}
+          onChange={handleChangeAmount}
+          variant="outlined"
+          inputProps={{
+            pattern: "[0-9]*", // Pattern for numeric input
+            inputMode: "numeric", // Show numeric keyboard on mobile
+          }}
         />
-      )}
-    </Box>
+        <TextField
+          label="Price"
+          type="text"
+          value={price}
+          onChange={handleChangePrice}
+          variant="outlined"
+          inputProps={{
+            pattern: "[0-9]*", // Pattern for numeric input
+            inputMode: "numeric", // Show numeric keyboard on mobile
+          }}
+        />
+        <Button
+          variant="outlined"
+          color="primary"
+          onClick={() => qOrder(tabLabels[tabIndex], "buy")}
+        >
+          buy {tabLabels[tabIndex]}
+        </Button>
+        <Button
+          variant="outlined"
+          color="primary"
+          onClick={() => qOrder(tabLabels[tabIndex], "sell")}
+        >
+          sell {tabLabels[tabIndex]}
+        </Button>
+        <Divider sx={{ bgcolor: "black" }} />
+        <Divider sx={{ bgcolor: "black" }} />
+        {showLog ? { log } : <></>}
+        <Divider sx={{ bgcolor: "black" }} />
+        {latestTick}
+      </List>
+      ASK
+      <Box sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}>
+        {/* <Typography variant="h6" sx={{ padding: 2 }}>
+          Orders
+        </Typography> */}
+
+        <List
+          sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}
+        >
+          {askOrders.map((item, index) => {
+            const labelId = `checkbox-list-label-${item}`;
+
+            return (
+              <ListItem
+                key={item}
+                // secondaryAction={
+                //   <IconButton edge="end" aria-label="comments">
+                //     <CommentIcon />
+                //   </IconButton>
+                // }
+                onClick={() => {
+                  setSelectedAsk(index);
+                  setSelectedBid(-1);
+                }}
+                disablePadding
+              >
+                <ListItemButton
+                  role={undefined}
+                  // onClick={handleToggle(value)}
+                  dense
+                >
+                  <ListItemIcon>
+                    <Checkbox
+                      edge="start"
+                      checked={index === selectedAsk}
+                      tabIndex={-1}
+                      disableRipple
+                      inputProps={{ "aria-labelledby": labelId }}
+                    />
+                  </ListItemIcon>
+                  <ListItemText primary={item.price} />
+                  <ListItemText primary={item.numberOfShares} />
+                  <ListItemText
+                    key={item.entityId + index}
+                    primary={
+                      <Typography
+                        variant="body2"
+                        style={{
+                          color: id === item.entityId ? "#4422FF" : "FFFFFF",
+                        }}
+                      >
+                        {item.entityId}
+                      </Typography>
+                    }
+                  />
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
+        </List>
+      </Box>
+      BID
+      <Box sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}>
+        {/* <Typography variant="h6" sx={{ padding: 2 }}>
+          Orders
+        </Typography> */}
+
+        <List
+          sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}
+        >
+          {bidOrders.map((item, index) => {
+            const labelId = `checkbox-list-label-${item}`;
+
+            return (
+              <ListItem
+                key={item}
+                // secondaryAction={
+                //   <IconButton edge="end" aria-label="comments">
+                //     <CommentIcon />
+                //   </IconButton>
+                // }
+                onClick={() => {
+                  setSelectedBid(index);
+                  setSelectedAsk(-1);
+                }}
+                disablePadding
+              >
+                <ListItemButton
+                  role={undefined}
+                  // onClick={handleToggle(value)}
+                  dense
+                >
+                  <ListItemIcon>
+                    <Checkbox
+                      edge="start"
+                      checked={index === selectedBid}
+                      tabIndex={-1}
+                      disableRipple
+                      inputProps={{ "aria-labelledby": labelId }}
+                    />
+                  </ListItemIcon>
+                  <ListItemText primary={item.price} />
+                  <ListItemText primary={item.numberOfShares} />
+                  <ListItemText
+                    key={item.entityId + index}
+                    primary={
+                      <Typography
+                        variant="body2"
+                        style={{
+                          color: id === item.entityId ? "#4422FF" : "FFFFFF",
+                        }}
+                      >
+                        {item.entityId}
+                      </Typography>
+                    }
+                  />
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
+        </List>
+      </Box>
+    </>
   );
 };
 
