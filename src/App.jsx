@@ -72,32 +72,19 @@ const App = () => {
   const [assets, setAssets] = useState([]);
   const [amount, setAmount] = useState(0);
   const [price, setPrice] = useState(0);
-  const [showOrders, setShowOrders] = useState(true);
-  const [tradingLink, setTradingLink] = useState(tradingURL);
   const [loadRefresh, setLoadRefresh] = useState(false);
 
   const [seed, setSeed] = useState("");
   const [showSeed, setShowSeed] = useState(false);
-  const [latestTick, setLatestTick] = useState("LATEST TICK:");
-  const [log, setLog] = useState("LOG: ");
+  const [latestTick, setLatestTick] = useState(0);
+  const [log, setLog] = useState("");
   const [orderTick, setOrderTick] = useState(0);
   const [showLog, setShowLog] = useState(false);
 
   const [askOrders, setAskOrders] = useState([]);
   const [bidOrders, setBidOrders] = useState([]);
-  const [tabIndex, setTabIndex] = useState(7);
-
-  useEffect(() => {
-    //Implementing the setInterval method
-    const interval = setInterval(() => {
-      setShowLog(latestTick < orderTick);
-    }, 2000);
-
-    //Clearing the interval
-    return () => clearInterval(interval);
-  }, []);
-
-  // const p = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const [tabIndex, setTabIndex] = useState(0);
+  const tabLabels = [...ISSUER.keys()];
 
   const valueOfAssetName = (asset) => {
     const bytes = new Uint8Array(8);
@@ -252,7 +239,7 @@ const App = () => {
     const qubicPackage = await qubic.createIdPackage(seed);
     const ID = qubicPackage.publicId;
     setId(ID);
-    console.log(qubicPackage.publicId);
+    console.log(ID);
     // // const res = await new QubicHelper().createIdPackage(p);
     // // console.log(res.publicId);
     setBalance((await qBalance(ID)).balance);
@@ -264,6 +251,9 @@ const App = () => {
         ])
       )
     );
+
+    setAskOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Ask"));
+    setBidOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Bid"));
 
     setShowOrders(false);
   };
@@ -335,7 +325,9 @@ const App = () => {
     console.log(await res.json());
 
     setLog(
-      `LOG: ${type}: ${amount} asset(s) of ${asset} for ${price} qu per token on tick ${orderTick}`
+      `${type}: ${rmAmount ? rmAmount : amount} asset(s) of ${asset} for ${
+        rmPrice ? rmPrice : price
+      } qu per token on tick ${latestTick + tickOffset}`
     );
     return "OK";
   };
@@ -379,8 +371,11 @@ const App = () => {
         );
         // setAskOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Ask"));
         // setBidOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Bid"));
-        setLatestTick(`LATEST TICK: ${await qFetchLatestTick()}`);
+        let tick = await qFetchLatestTick();
+        console.log(tick, orderTick);
+        setLatestTick(tick);
         // await qFetchAssetOrders();
+        setShowLog(tick < orderTick);
       }, 5000);
     }
 
@@ -388,37 +383,14 @@ const App = () => {
     return () => clearInterval(intervalId);
   }, [id]); // Depend on isLoggedIn
 
-  // START
-  const handleChanged = async (event) => {
+  const changeAsset = async (event) => {
     setTabIndex(event.target.value);
     setAskOrders(await qFetchAssetOrders(tabLabels[event.target.value], "Ask"));
     setBidOrders(await qFetchAssetOrders(tabLabels[event.target.value], "Bid"));
   };
 
-  const tabLabels = [...ISSUER.keys()];
-
-  const [selectedAsk, setSelectedAsk] = useState(-1);
-  const [selectedBid, setSelectedBid] = useState(-1);
-
   return (
     <>
-      <Box sx={{ width: "100%" }}>
-        {/* <AppBar position="static">
-          <Tabs
-            value={tabIndex}
-            onChange={(e, newValue) => setTabIndex(newValue)}
-          >
-            {tabLabels.map((label, index) => (
-              <Tab label={label} key={index} />
-            ))}
-          </Tabs>
-        </AppBar> */}
-        {/* <Box sx={{ padding: 3 }}>
-          {tabIndex === 0 && <div>Content for Tab 1</div>}
-          {tabIndex === 1 && <div>Content for Tab 2</div>}
-          {tabIndex === 2 && <div>Content for Tab 3</div>}
-        </Box> */}
-      </Box>
       <Typography variant="h6" component="h4">
         <CircleIcon sx={{ color: id ? "green" : "red" }}></CircleIcon>
         {id ? `ID: ${id}` : " no ID connected"}
@@ -483,7 +455,12 @@ const App = () => {
         sx={{ paddingTop: 1, marginTop: 2 }}
       >
         <InputLabel>Token</InputLabel>
-        <Select value={tabIndex} onChange={handleChanged} label="Select Tab">
+        <Select
+          sx={{ width: "20%", maxWidth: 200 }}
+          value={tabIndex}
+          onChange={changeAsset}
+          label="Select Tab"
+        >
           {tabLabels.map((label, index) => (
             <MenuItem value={index} key={index}>
               {label}
@@ -530,16 +507,12 @@ const App = () => {
         </Button>
         <Divider sx={{ bgcolor: "black" }} />
         <Divider sx={{ bgcolor: "black" }} />
-        {showLog ? { log } : <></>}
+        LAST ACTION: {log}
         <Divider sx={{ bgcolor: "black" }} />
-        {latestTick}
+        LATEST TICK: {latestTick}
       </List>
       ASK
       <Box sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}>
-        {/* <Typography variant="h6" sx={{ padding: 2 }}>
-          Orders
-        </Typography> */}
-
         <List
           sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}
         >
@@ -547,24 +520,8 @@ const App = () => {
             const labelId = `checkbox-list-label-${item}`;
 
             return (
-              <ListItem
-                key={item}
-                // secondaryAction={
-                //   <IconButton edge="end" aria-label="comments">
-                //     <CommentIcon />
-                //   </IconButton>
-                // }
-                onClick={() => {
-                  setAmount(item.numberOfShares);
-                  setPrice(item.price);
-                }}
-                disablePadding
-              >
-                <ListItemButton
-                  role={undefined}
-                  // onClick={handleToggle(value)}
-                  dense
-                >
+              <ListItem key={item} disablePadding>
+                <ListItemButton role={undefined} dense>
                   <ListItemIcon>
                     {id === item.entityId ? (
                       <DeleteIcon
@@ -604,10 +561,6 @@ const App = () => {
       </Box>
       BID
       <Box sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}>
-        {/* <Typography variant="h6" sx={{ padding: 2 }}>
-          Orders
-        </Typography> */}
-
         <List
           sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}
         >
@@ -615,26 +568,8 @@ const App = () => {
             const labelId = `checkbox-list-label-${item}`;
 
             return (
-              <ListItem
-                key={item}
-                // secondaryAction={
-                //   <IconButton edge="end" aria-label="comments">
-                //     <CommentIcon />
-                //   </IconButton>
-                // }
-                onClick={() => {
-                  setAmount(item.numberOfShares);
-                  setPrice(item.price);
-                  setSelectedBid(index);
-                  setSelectedAsk(-1);
-                }}
-                disablePadding
-              >
-                <ListItemButton
-                  role={undefined}
-                  // onClick={handleToggle(value)}
-                  dense
-                >
+              <ListItem key={item} disablePadding>
+                <ListItemButton role={undefined} dense>
                   <ListItemIcon>
                     {id === item.entityId ? (
                       <DeleteIcon
