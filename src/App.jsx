@@ -24,6 +24,8 @@ import {
   ListItemIcon,
 } from "@mui/material";
 
+import DeleteIcon from "@mui/icons-material/Delete";
+
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
@@ -48,6 +50,7 @@ import { Long } from "@qubic-lib/qubic-ts-library/dist/qubic-types/Long.js";
 const apiURL = "https://api.qubic.org";
 const baseURL = "https://rpc.qubic.org";
 const tradingURL = "https://qxinfo.qubic.org/#/assets";
+const tickOffset = 5;
 
 const ISSUER = new Map([
   ["QX", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFXIB"],
@@ -142,8 +145,28 @@ const App = () => {
       .setAmount(new Long(0))
       .setInputType(actionType)
       .setPayload(payload);
+
     if (actionType === QubicDefinitions.QX_ADD_BID_ORDER) {
       transaction.setAmount(new Long(payload.getTotalAmount()));
+    }
+
+    switch (actionType) {
+      case QubicDefinitions.QX_ADD_BID_ORDER:
+        transaction.setInputType(QubicDefinitions.QX_ADD_BID_ORDER);
+        transaction.setAmount(new Long(payload.getTotalAmount()));
+        break;
+      case QubicDefinitions.QX_ADD_ASK_ORDER:
+        transaction.setInputType(QubicDefinitions.QX_ADD_ASK_ORDER);
+        transaction.setAmount(0);
+        break;
+      case QubicDefinitions.QX_REMOVE_BID_ORDER:
+        transaction.setInputType(QubicDefinitions.QX_REMOVE_BID_ORDER);
+        transaction.setAmount(new Long(0));
+        break;
+      case QubicDefinitions.QX_REMOVE_ASK_ORDER:
+        transaction.setInputType(QubicDefinitions.QX_REMOVE_ASK_ORDER);
+        transaction.setAmount(new Long(0));
+        break;
     }
 
     await transaction.build(senderSeed);
@@ -262,41 +285,57 @@ const App = () => {
     }, 500); // Adjust time as needed
   };
 
-  const qOrder = async (asset, type) => {
+  const qOrder = async (asset, type, rmPrice, rmAmount) => {
     console.log(`${type} ${amount} asset(s) of ${asset}`);
 
     //Get latest tick
     const latestTick = await qFetchLatestTick();
-    setOrderTick(latestTick + 10);
+    setOrderTick(latestTick + tickOffset);
     //Assemble transaction payload
     const orderPayload = createQXOrderPayload(
       ISSUER.get(asset),
       asset,
-      price,
-      amount
+      rmPrice ? rmPrice : price,
+      rmAmount ? rmAmount : amount
     );
 
     console.log(orderPayload);
+
+    let actionType = "";
+    switch (type) {
+      case "buy":
+        actionType = QubicDefinitions.QX_ADD_BID_ORDER;
+        break;
+      case "sell":
+        actionType = QubicDefinitions.QX_ADD_ASK_ORDER;
+        break;
+      case "rmBuy":
+        actionType = QubicDefinitions.QX_REMOVE_BID_ORDER;
+        break;
+      case "rmSell":
+        actionType = QubicDefinitions.QX_REMOVE_ASK_ORDER;
+        break;
+
+      default:
+        break;
+    }
 
     //Assemble transaction
     const transaction = await createQXOrderTransaction(
       id,
       seed,
-      latestTick + 10,
+      latestTick + tickOffset,
       orderPayload,
-      type === "buy"
-        ? QubicDefinitions.QX_ADD_BID_ORDER
-        : QubicDefinitions.QX_ADD_ASK_ORDER
+      actionType
     );
 
     console.log(transaction);
     //Broadcast transaction
     const res = await broadcastTransaction(transaction);
     console.log(await res.json());
+
     setLog(
-      `LOG: ${
-        type === "buy" ? "Buying" : "Selling"
-      } ${amount} asset(s) of ${asset} for ${price} qu per token on tick ${orderTick}`
+      `LOG: ${type}: ${amount} asset(s) of ${asset} for ${price} qu per token on tick ${orderTick}`
     );
     return "OK";
   };
@@ -516,8 +555,8 @@ const App = () => {
                 //   </IconButton>
                 // }
                 onClick={() => {
-                  setSelectedAsk(index);
-                  setSelectedBid(-1);
+                  setAmount(item.numberOfShares);
+                  setPrice(item.price);
                 }}
                 disablePadding
               >
@@ -527,13 +566,20 @@ const App = () => {
                   dense
                 >
                   <ListItemIcon>
-                    <Checkbox
-                      edge="start"
-                      checked={index === selectedAsk}
-                      tabIndex={-1}
-                      disableRipple
-                      inputProps={{ "aria-labelledby": labelId }}
-                    />
+                    {id === item.entityId ? (
+                      <DeleteIcon
+                        onClick={() =>
+                          qOrder(
+                            tabLabels[tabIndex],
+                            "rmSell",
+                            item.price,
+                            item.numberOfShares
+                          )
+                        }
+                      />
+                    ) : (
+                      <></>
+                    )}
                   </ListItemIcon>
                   <ListItemText primary={item.price} />
                   <ListItemText primary={item.numberOfShares} />
@@ -577,6 +623,8 @@ const App = () => {
                 //   </IconButton>
                 // }
                 onClick={() => {
+                  setAmount(item.numberOfShares);
+                  setPrice(item.price);
                   setSelectedBid(index);
                   setSelectedAsk(-1);
                 }}
@@ -588,13 +636,20 @@ const App = () => {
                   dense
                 >
                   <ListItemIcon>
-                    <Checkbox
-                      edge="start"
-                      checked={index === selectedBid}
-                      tabIndex={-1}
-                      disableRipple
-                      inputProps={{ "aria-labelledby": labelId }}
-                    />
+                    {id === item.entityId ? (
+                      <DeleteIcon
+                        onClick={() =>
+                          qOrder(
+                            tabLabels[tabIndex],
+                            "rmBuy",
+                            item.price,
+                            item.numberOfShares
+                          )
+                        }
+                      />
+                    ) : (
+                      <></>
+                    )}
                   </ListItemIcon>
                   <ListItemText primary={item.price} />
                   <ListItemText primary={item.numberOfShares} />
