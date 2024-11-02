@@ -10,6 +10,7 @@ import {
   CircularProgress,
   InputAdornment,
   IconButton,
+  LinearProgress,
 } from "@mui/material";
 import {
   AppBar,
@@ -49,7 +50,6 @@ import { Long } from "@qubic-lib/qubic-ts-library/dist/qubic-types/Long.js";
 
 const apiURL = "https://api.qubic.org";
 const baseURL = "https://rpc.qubic.org";
-const tradingURL = "https://qxinfo.qubic.org/#/assets";
 const tickOffset = 5;
 
 const ISSUER = new Map([
@@ -79,7 +79,7 @@ const App = () => {
   const [latestTick, setLatestTick] = useState(0);
   const [log, setLog] = useState("");
   const [orderTick, setOrderTick] = useState(0);
-  const [showLog, setShowLog] = useState(false);
+  const [showProgress, setShowProgress] = useState(false);
 
   const [askOrders, setAskOrders] = useState([]);
   const [bidOrders, setBidOrders] = useState([]);
@@ -252,17 +252,15 @@ const App = () => {
       )
     );
 
+    setLatestTick(await qFetchLatestTick());
+
     setAskOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Ask"));
     setBidOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Bid"));
-
-    setShowOrders(false);
   };
 
   const qLogout = async () => {
     console.log("qlogout");
     setId(""); // Assume login is successful
-    setShowOrders(true);
-    setTradingLink(tradingURL);
   };
 
   const qRefresh = async () => {
@@ -281,6 +279,7 @@ const App = () => {
     //Get latest tick
     const latestTick = await qFetchLatestTick();
     setOrderTick(latestTick + tickOffset);
+    setShowProgress(true);
     //Assemble transaction payload
     const orderPayload = createQXOrderPayload(
       ISSUER.get(asset),
@@ -372,16 +371,21 @@ const App = () => {
         // setAskOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Ask"));
         // setBidOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Bid"));
         let tick = await qFetchLatestTick();
-        console.log(tick, orderTick);
+        console.log(showProgress, tick, orderTick);
         setLatestTick(tick);
-        // await qFetchAssetOrders();
-        setShowLog(tick < orderTick);
+        // fetch new orders after tx has gone through
+        if (showProgress && tick >= orderTick) {
+          console.log("HUCH");
+          setAskOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Ask"));
+          setBidOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Bid"));
+        }
+        setShowProgress(tick < orderTick);
       }, 5000);
     }
 
     // Cleanup the interval on component unmount or when isLoggedIn changes
     return () => clearInterval(intervalId);
-  }, [id]); // Depend on isLoggedIn
+  }, [id, showProgress]); // Depend on isLoggedIn
 
   const changeAsset = async (event) => {
     setTabIndex(event.target.value);
@@ -447,166 +451,173 @@ const App = () => {
               Logout
             </Button>
           </>
+          <FormControl
+            fullWidth
+            variant="outlined"
+            sx={{ paddingTop: 1, marginTop: 2 }}
+          >
+            <InputLabel>Token</InputLabel>
+            <Select
+              sx={{ width: "20%", maxWidth: 200 }}
+              value={tabIndex}
+              onChange={changeAsset}
+              label="Select Tab"
+            >
+              {tabLabels.map((label, index) => (
+                <MenuItem value={index} key={index}>
+                  {label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <List>
+            <TextField
+              label="Amount"
+              type="text"
+              value={amount}
+              onChange={handleChangeAmount}
+              variant="outlined"
+              inputProps={{
+                pattern: "[0-9]*", // Pattern for numeric input
+                inputMode: "numeric", // Show numeric keyboard on mobile
+              }}
+            />
+            <TextField
+              label="Price"
+              type="text"
+              value={price}
+              onChange={handleChangePrice}
+              variant="outlined"
+              inputProps={{
+                pattern: "[0-9]*", // Pattern for numeric input
+                inputMode: "numeric", // Show numeric keyboard on mobile
+              }}
+            />
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={() => qOrder(tabLabels[tabIndex], "buy")}
+            >
+              buy {tabLabels[tabIndex]}
+            </Button>
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={() => qOrder(tabLabels[tabIndex], "sell")}
+            >
+              sell {tabLabels[tabIndex]}
+            </Button>
+            <Divider sx={{ bgcolor: "black" }} />
+            <Divider sx={{ bgcolor: "black" }} />
+            {showProgress ? <LinearProgress></LinearProgress> : <></>}
+            LAST ACTION: {showProgress ? log : <></>}
+            <Divider sx={{ bgcolor: "black" }} />
+            LATEST TICK: {latestTick}
+          </List>
+          ASK
+          <Box
+            sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}
+          >
+            <List
+              sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}
+            >
+              {askOrders.map((item, index) => {
+                const labelId = `checkbox-list-label-${item}`;
+
+                return (
+                  <ListItem key={item} disablePadding>
+                    <ListItemButton role={undefined} dense>
+                      <ListItemIcon>
+                        {id === item.entityId ? (
+                          <DeleteIcon
+                            onClick={() =>
+                              qOrder(
+                                tabLabels[tabIndex],
+                                "rmSell",
+                                item.price,
+                                item.numberOfShares
+                              )
+                            }
+                          />
+                        ) : (
+                          <></>
+                        )}
+                      </ListItemIcon>
+                      <ListItemText primary={item.price} />
+                      <ListItemText primary={item.numberOfShares} />
+                      <ListItemText
+                        key={item.entityId + index}
+                        primary={
+                          <Typography
+                            variant="body2"
+                            style={{
+                              color:
+                                id === item.entityId ? "#4422FF" : "FFFFFF",
+                            }}
+                          >
+                            {item.entityId}
+                          </Typography>
+                        }
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                );
+              })}
+            </List>
+          </Box>
+          BID
+          <Box
+            sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}
+          >
+            <List
+              sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}
+            >
+              {bidOrders.map((item, index) => {
+                const labelId = `checkbox-list-label-${item}`;
+
+                return (
+                  <ListItem key={item} disablePadding>
+                    <ListItemButton role={undefined} dense>
+                      <ListItemIcon>
+                        {id === item.entityId ? (
+                          <DeleteIcon
+                            onClick={() =>
+                              qOrder(
+                                tabLabels[tabIndex],
+                                "rmBuy",
+                                item.price,
+                                item.numberOfShares
+                              )
+                            }
+                          />
+                        ) : (
+                          <></>
+                        )}
+                      </ListItemIcon>
+                      <ListItemText primary={item.price} />
+                      <ListItemText primary={item.numberOfShares} />
+                      <ListItemText
+                        key={item.entityId + index}
+                        primary={
+                          <Typography
+                            variant="body2"
+                            style={{
+                              color:
+                                id === item.entityId ? "#4422FF" : "FFFFFF",
+                            }}
+                          >
+                            {item.entityId}
+                          </Typography>
+                        }
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                );
+              })}
+            </List>
+          </Box>
         </>
       )}
-      <FormControl
-        fullWidth
-        variant="outlined"
-        sx={{ paddingTop: 1, marginTop: 2 }}
-      >
-        <InputLabel>Token</InputLabel>
-        <Select
-          sx={{ width: "20%", maxWidth: 200 }}
-          value={tabIndex}
-          onChange={changeAsset}
-          label="Select Tab"
-        >
-          {tabLabels.map((label, index) => (
-            <MenuItem value={index} key={index}>
-              {label}
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-      <List>
-        <TextField
-          label="Amount"
-          type="text"
-          value={amount}
-          onChange={handleChangeAmount}
-          variant="outlined"
-          inputProps={{
-            pattern: "[0-9]*", // Pattern for numeric input
-            inputMode: "numeric", // Show numeric keyboard on mobile
-          }}
-        />
-        <TextField
-          label="Price"
-          type="text"
-          value={price}
-          onChange={handleChangePrice}
-          variant="outlined"
-          inputProps={{
-            pattern: "[0-9]*", // Pattern for numeric input
-            inputMode: "numeric", // Show numeric keyboard on mobile
-          }}
-        />
-        <Button
-          variant="outlined"
-          color="primary"
-          onClick={() => qOrder(tabLabels[tabIndex], "buy")}
-        >
-          buy {tabLabels[tabIndex]}
-        </Button>
-        <Button
-          variant="outlined"
-          color="primary"
-          onClick={() => qOrder(tabLabels[tabIndex], "sell")}
-        >
-          sell {tabLabels[tabIndex]}
-        </Button>
-        <Divider sx={{ bgcolor: "black" }} />
-        <Divider sx={{ bgcolor: "black" }} />
-        LAST ACTION: {log}
-        <Divider sx={{ bgcolor: "black" }} />
-        LATEST TICK: {latestTick}
-      </List>
-      ASK
-      <Box sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}>
-        <List
-          sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}
-        >
-          {askOrders.map((item, index) => {
-            const labelId = `checkbox-list-label-${item}`;
-
-            return (
-              <ListItem key={item} disablePadding>
-                <ListItemButton role={undefined} dense>
-                  <ListItemIcon>
-                    {id === item.entityId ? (
-                      <DeleteIcon
-                        onClick={() =>
-                          qOrder(
-                            tabLabels[tabIndex],
-                            "rmSell",
-                            item.price,
-                            item.numberOfShares
-                          )
-                        }
-                      />
-                    ) : (
-                      <></>
-                    )}
-                  </ListItemIcon>
-                  <ListItemText primary={item.price} />
-                  <ListItemText primary={item.numberOfShares} />
-                  <ListItemText
-                    key={item.entityId + index}
-                    primary={
-                      <Typography
-                        variant="body2"
-                        style={{
-                          color: id === item.entityId ? "#4422FF" : "FFFFFF",
-                        }}
-                      >
-                        {item.entityId}
-                      </Typography>
-                    }
-                  />
-                </ListItemButton>
-              </ListItem>
-            );
-          })}
-        </List>
-      </Box>
-      BID
-      <Box sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}>
-        <List
-          sx={{ width: "100%", maxWidth: 900, bgcolor: "background.paper" }}
-        >
-          {bidOrders.map((item, index) => {
-            const labelId = `checkbox-list-label-${item}`;
-
-            return (
-              <ListItem key={item} disablePadding>
-                <ListItemButton role={undefined} dense>
-                  <ListItemIcon>
-                    {id === item.entityId ? (
-                      <DeleteIcon
-                        onClick={() =>
-                          qOrder(
-                            tabLabels[tabIndex],
-                            "rmBuy",
-                            item.price,
-                            item.numberOfShares
-                          )
-                        }
-                      />
-                    ) : (
-                      <></>
-                    )}
-                  </ListItemIcon>
-                  <ListItemText primary={item.price} />
-                  <ListItemText primary={item.numberOfShares} />
-                  <ListItemText
-                    key={item.entityId + index}
-                    primary={
-                      <Typography
-                        variant="body2"
-                        style={{
-                          color: id === item.entityId ? "#4422FF" : "FFFFFF",
-                        }}
-                      >
-                        {item.entityId}
-                      </Typography>
-                    }
-                  />
-                </ListItemButton>
-              </ListItem>
-            );
-          })}
-        </List>
-      </Box>
     </>
   );
 };
