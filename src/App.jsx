@@ -7,21 +7,16 @@ import {
   TextField,
   Typography,
   Divider,
-  CircularProgress,
   InputAdornment,
   IconButton,
   LinearProgress,
 } from "@mui/material";
 import {
-  AppBar,
-  Tabs,
-  Tab,
   Select,
   MenuItem,
   InputLabel,
   FormControl,
   ListItemButton,
-  Checkbox,
   ListItemIcon,
 } from "@mui/material";
 
@@ -31,19 +26,12 @@ import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
 import CircleIcon from "@mui/icons-material/Circle";
-import Iframe from "react-iframe";
 import React, { useState, useEffect } from "react";
 
 // QUBIC
 import { QubicHelper } from "@qubic-lib/qubic-ts-library/dist/qubicHelper.js";
 import { QubicTransferQXOrderPayload } from "@qubic-lib/qubic-ts-library/dist/qubic-types/transacion-payloads/QubicTransferQXOrderPayload.js";
-
-import { QubicPackageBuilder } from "@qubic-lib/qubic-ts-library/dist/QubicPackageBuilder.js";
 import { QubicTransaction } from "@qubic-lib/qubic-ts-library/dist/qubic-types/QubicTransaction.js";
-
-import { QubicPackageType } from "@qubic-lib/qubic-ts-library/dist/qubic-communication/QubicPackageType.js";
-import { RequestResponseHeader } from "@qubic-lib/qubic-ts-library/dist/qubic-communication/RequestResponseHeader.js";
-
 import { QubicDefinitions } from "@qubic-lib/qubic-ts-library/dist/QubicDefinitions.js";
 import { PublicKey } from "@qubic-lib/qubic-ts-library/dist/qubic-types/PublicKey.js";
 import { Long } from "@qubic-lib/qubic-ts-library/dist/qubic-types/Long.js";
@@ -72,7 +60,6 @@ const App = () => {
   const [assets, setAssets] = useState([]);
   const [amount, setAmount] = useState(0);
   const [price, setPrice] = useState(0);
-  const [loadRefresh, setLoadRefresh] = useState(false);
 
   const [seed, setSeed] = useState("");
   const [showSeed, setShowSeed] = useState(false);
@@ -201,8 +188,6 @@ const App = () => {
     );
     const data = await response.json();
 
-    const objectString = JSON.stringify(data, null, 2); // Pretty print with 2 spaces
-    // console.log(objectString);
     return type === "Ask" ? data["orders"].reverse() : data["orders"];
   };
 
@@ -240,8 +225,6 @@ const App = () => {
     const ID = qubicPackage.publicId;
     setId(ID);
     console.log(ID);
-    // // const res = await new QubicHelper().createIdPackage(p);
-    // // console.log(res.publicId);
     setBalance((await qBalance(ID)).balance);
     setAssets(
       new Map(
@@ -261,16 +244,6 @@ const App = () => {
   const qLogout = async () => {
     console.log("qlogout");
     setId(""); // Assume login is successful
-  };
-
-  const qRefresh = async () => {
-    console.log("qRefresh");
-    setLoadRefresh(true);
-    setBalance(await qBalance());
-    qOwnedAssets();
-    setTimeout(() => {
-      setLoadRefresh(false);
-    }, 500); // Adjust time as needed
   };
 
   const qOrder = async (asset, type, rmPrice, rmAmount) => {
@@ -368,14 +341,11 @@ const App = () => {
             ])
           )
         );
-        // setAskOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Ask"));
-        // setBidOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Bid"));
         let tick = await qFetchLatestTick();
         console.log(showProgress, tick, orderTick);
         setLatestTick(tick);
         // fetch new orders after tx has gone through
         if (showProgress && tick >= orderTick) {
-          console.log("HUCH");
           setAskOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Ask"));
           setBidOrders(await qFetchAssetOrders(tabLabels[tabIndex], "Bid"));
         }
