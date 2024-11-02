@@ -90,7 +90,7 @@ const App = () => {
     const bytes = new Uint8Array(8);
     bytes.set(new TextEncoder().encode(asset));
 
-    return new DataView(bytes.buffer).getInt32(0, true);
+    return new DataView(bytes.buffer).getBigInt64(0, true);
   };
 
   const fetchAssetOrders = async (assetName, issuerID, type, offset) => {
