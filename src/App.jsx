@@ -86,10 +86,6 @@ const App = () => {
         `/v1/qx/getAsset${type}Orders?assetName=${assetName}&issuerId=${issuerID}&offset=${offset}`,
       {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
       }
     );
     return response;
