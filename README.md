@@ -10,6 +10,7 @@ or
 
 - do a yarn BUILD (https://classic.yarnpkg.com/lang/en/docs/install/)
   - yarn
+  - yarn build
   - yarn start
 
 1. Login with your seed
