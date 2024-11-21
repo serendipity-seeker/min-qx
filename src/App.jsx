@@ -1,9 +1,12 @@
 import {
   Box,
   Button,
-  List,
-  ListItem,
-  ListItemText,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TextField,
   Typography,
   Divider,
@@ -14,14 +17,22 @@ import {
   MenuItem,
   InputLabel,
   FormControl,
-  ListItemButton,
-  ListItemIcon,
+  Paper,
+  ThemeProvider,
+  createTheme,
+  CssBaseline,
 } from '@mui/material';
 
 import DeleteIcon from '@mui/icons-material/Delete';
 import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import CircleIcon from '@mui/icons-material/Circle';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import TokenIcon from '@mui/icons-material/Token';
+import LightModeIcon from '@mui/icons-material/LightMode';
+import DarkModeIcon from '@mui/icons-material/DarkMode';
+import ShoppingCartIcon from '@mui/icons-material/ShoppingCart';
+import SellIcon from '@mui/icons-material/Sell';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
 // QUBIC
@@ -50,6 +61,42 @@ const ISSUER = new Map([
   ['QCAP', 'QCAPWMYRSHLBJHSTTZQVCIBARVOASKDENASAKNOBRGPFWWKRCUVUAXYEZVOG'],
 ]);
 
+const getTheme = (mode) =>
+  createTheme({
+    palette: {
+      mode,
+      ...(mode === 'dark' && {
+        background: {
+          default: '#121928',
+          paper: '#1a2235',
+        },
+      }),
+    },
+    typography: {
+      fontFamily: 'Exo, sans-serif',
+      h6: {
+        fontSize: '1.1rem',
+        fontWeight: 600,
+      },
+      body1: {
+        fontSize: '0.95rem',
+      },
+      button: {
+        textTransform: 'none',
+        fontSize: '0.9rem',
+      },
+    },
+    components: {
+      MuiTableCell: {
+        styleOverrides: {
+          root: {
+            fontSize: '0.9rem',
+          },
+        },
+      },
+    },
+  });
+
 const App = () => {
   const [id, setId] = useState('');
   const [balance, setBalance] = useState(0);
@@ -65,7 +112,9 @@ const App = () => {
   const [askOrders, setAskOrders] = useState([]);
   const [bidOrders, setBidOrders] = useState([]);
   const [tabIndex, setTabIndex] = useState(0);
+  const [themeMode, setThemeMode] = useState('light');
 
+  const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const tabLabels = useMemo(() => [...ISSUER.keys()], []);
 
   const valueOfAssetName = useCallback((asset) => {
@@ -73,7 +122,6 @@ const App = () => {
     bytes.set(new TextEncoder().encode(asset));
     return new DataView(bytes.buffer).getBigInt64(0, true);
   }, []);
-
   const fetchAssetOrders = useCallback(async (assetName, issuerID, type, offset) => {
     return await fetch(`${API_URL}/v1/qx/getAsset${type}Orders?assetName=${assetName}&issuerId=${issuerID}&offset=${offset}`, { method: 'GET' });
   }, []);
@@ -267,136 +315,148 @@ const App = () => {
     [tabLabels, qFetchAssetOrders]
   );
 
-  const renderOrderList = useCallback(
+  const renderOrderTable = useCallback(
     (orders, type) => (
-      <Box sx={{ width: '100%', maxWidth: 900, bgcolor: 'background.paper' }}>
-        <List sx={{ width: '100%', maxWidth: 900, bgcolor: 'background.paper' }}>
-          {orders.map((item, index) => (
-            <ListItem key={item.entityId + index} disablePadding>
-              <ListItemButton role={undefined} dense>
-                <ListItemIcon>{id === item.entityId && <DeleteIcon onClick={() => qOrder(tabLabels[tabIndex], type === 'Ask' ? 'rmSell' : 'rmBuy', item.price, item.numberOfShares)} />}</ListItemIcon>
-                <ListItemText primary={item.price} />
-                <ListItemText primary={item.numberOfShares} />
-                <ListItemText
-                  primary={
-                    <Typography
-                      variant="body2"
-                      style={{
-                        color: id === item.entityId ? '#4422FF' : 'FFFFFF',
-                      }}
-                    >
-                      {item.entityId}
-                    </Typography>
-                  }
-                />
-              </ListItemButton>
-            </ListItem>
-          ))}
-        </List>
-      </Box>
+      <TableContainer component={Paper} sx={{ mt: 2, mb: 3 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Action</TableCell>
+              <TableCell align="right">Price (qu)</TableCell>
+              <TableCell align="right">Amount</TableCell>
+              <TableCell>Entity ID</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {orders.map((item, index) => (
+              <TableRow key={item.entityId + index}>
+                <TableCell>
+                  {id === item.entityId && (
+                    <IconButton size="small" onClick={() => qOrder(tabLabels[tabIndex], type === 'Ask' ? 'rmSell' : 'rmBuy', item.price, item.numberOfShares)}>
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  )}
+                </TableCell>
+                <TableCell align="right">{item.price}</TableCell>
+                <TableCell align="right">{item.numberOfShares}</TableCell>
+                <TableCell>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: id === item.entityId ? 'primary.main' : 'text.primary',
+                      fontSize: '0.85rem',
+                    }}
+                  >
+                    {item.entityId}
+                  </Typography>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
     ),
     [id, tabLabels, tabIndex, qOrder]
   );
 
   return (
-    <>
-      <Typography variant="h6" component="h4">
-        <CircleIcon sx={{ color: id ? 'green' : 'red' }} />
-        {id ? `ID: ${id}` : ' no ID connected'}
-      </Typography>
-
-      {id && (
-        <>
-          <Typography variant="h6" component="h4">
-            BALANCE: {balance} qus
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Box sx={{ p: 3, maxWidth: 1200, margin: '0 auto' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <CircleIcon sx={{ color: id ? 'success.main' : 'error.main' }} />
+            {id ? `ID: ${id}` : 'No ID Connected'}
           </Typography>
-          <Typography variant="h6" component="h4">
-            {tabLabels[tabIndex]}: {assets.get(tabLabels[tabIndex]) || 0} assets
-          </Typography>
-        </>
-      )}
+          <IconButton onClick={() => setThemeMode((prev) => (prev === 'light' ? 'dark' : 'light'))}>{themeMode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}</IconButton>
+        </Box>
 
-      {!id ? (
-        <>
-          <TextField
-            label="seed"
-            type={showSeed ? 'text' : 'password'}
-            value={seed}
-            onChange={(e) => setSeed(e.target.value)}
-            variant="outlined"
-            fullWidth
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton onClick={() => setShowSeed(!showSeed)} edge="end">
-                    {showSeed ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-          <Button variant="outlined" color="primary" onClick={qLogin}>
-            Login
-          </Button>
-        </>
-      ) : (
-        <>
-          <Button variant="outlined" color="primary" onClick={() => setId('')}>
-            Logout
-          </Button>
-          <FormControl fullWidth variant="outlined" sx={{ paddingTop: 1, marginTop: 2 }}>
-            <InputLabel>Token</InputLabel>
-            <Select sx={{ width: '20%', maxWidth: 200 }} value={tabIndex} onChange={changeAsset} label="Select Tab">
-              {tabLabels.map((label, index) => (
-                <MenuItem value={index} key={index}>
-                  {label}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <List>
+        {id && (
+          <Box sx={{ mb: 3 }}>
+            <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+              <AccountBalanceWalletIcon />
+              Balance: {balance} qus
+            </Typography>
+            <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <TokenIcon />
+              {tabLabels[tabIndex]}: {assets.get(tabLabels[tabIndex]) || 0} assets
+            </Typography>
+          </Box>
+        )}
+
+        {!id ? (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 400 }}>
             <TextField
-              label="Amount"
-              type="text"
-              value={amount}
-              onChange={handleInputChange(setAmount)}
+              label="Seed"
+              type={showSeed ? 'text' : 'password'}
+              value={seed}
+              onChange={(e) => setSeed(e.target.value)}
               variant="outlined"
-              inputProps={{
-                pattern: '[0-9]*',
-                inputMode: 'numeric',
+              fullWidth
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowSeed(!showSeed)} edge="end">
+                      {showSeed ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
               }}
             />
-            <TextField
-              label="Price"
-              type="text"
-              value={price}
-              onChange={handleInputChange(setPrice)}
-              variant="outlined"
-              inputProps={{
-                pattern: '[0-9]*',
-                inputMode: 'numeric',
-              }}
-            />
-            <Button variant="outlined" color="primary" onClick={() => qOrder(tabLabels[tabIndex], 'buy')}>
-              buy {tabLabels[tabIndex]}
+            <Button variant="contained" onClick={qLogin} sx={{ width: 'fit-content' }}>
+              Login
             </Button>
-            <Button variant="outlined" color="primary" onClick={() => qOrder(tabLabels[tabIndex], 'sell')}>
-              sell {tabLabels[tabIndex]}
+          </Box>
+        ) : (
+          <Box>
+            <Button variant="outlined" onClick={() => setId('')} sx={{ mb: 3 }}>
+              Logout
             </Button>
-            <Divider sx={{ bgcolor: 'black' }} />
-            <Divider sx={{ bgcolor: 'black' }} />
-            {showProgress && <LinearProgress />}
-            LAST ACTION: {showProgress && log}
-            <Divider sx={{ bgcolor: 'black' }} />
-            LATEST TICK: {latestTick}
-          </List>
-          ASK
-          {renderOrderList(askOrders, 'Ask')}
-          BID
-          {renderOrderList(bidOrders, 'Bid')}
-        </>
-      )}
-    </>
+
+            <FormControl fullWidth variant="outlined" sx={{ mb: 3 }}>
+              <InputLabel>Token</InputLabel>
+              <Select value={tabIndex} onChange={changeAsset} label="Token" sx={{ maxWidth: 200 }}>
+                {tabLabels.map((label, index) => (
+                  <MenuItem value={index} key={index}>
+                    {label}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
+              <TextField label="Amount" value={amount} onChange={handleInputChange(setAmount)} variant="outlined" size="small" sx={{ width: 150 }} />
+              <TextField label="Price" value={price} onChange={handleInputChange(setPrice)} variant="outlined" size="small" sx={{ width: 150 }} />
+              <Button variant="contained" startIcon={<ShoppingCartIcon />} onClick={() => qOrder(tabLabels[tabIndex], 'buy')}>
+                Buy {tabLabels[tabIndex]}
+              </Button>
+              <Button variant="contained" color="secondary" startIcon={<SellIcon />} onClick={() => qOrder(tabLabels[tabIndex], 'sell')}>
+                Sell {tabLabels[tabIndex]}
+              </Button>
+            </Box>
+
+            {showProgress && <LinearProgress sx={{ mb: 2 }} />}
+
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              Last Action: {showProgress && log}
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 3 }}>
+              Latest Tick: {latestTick}
+            </Typography>
+
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Ask Orders
+            </Typography>
+            {renderOrderTable(askOrders, 'Ask')}
+
+            <Typography variant="h6" sx={{ mb: 1 }}>
+              Bid Orders
+            </Typography>
+            {renderOrderTable(bidOrders, 'Bid')}
+          </Box>
+        )}
+      </Box>
+    </ThemeProvider>
   );
 };
 
