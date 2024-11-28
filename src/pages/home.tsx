@@ -23,6 +23,7 @@ import useFetchLatestTick from '@/hooks/useFectchlatestTick';
 import useOwnedAssets from '@/hooks/useOwnedAssets';
 import { POLLING_INTERVAL } from '@/constants';
 import { useNavigate } from 'react-router-dom';
+import { Balance } from '@/types';
 
 const handleInputChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (event: React.ChangeEvent<HTMLInputElement>) => {
   const newValue = event.target.value;
@@ -32,9 +33,8 @@ const handleInputChange = (setter: React.Dispatch<React.SetStateAction<string>>)
 };
 
 const Home: React.FC = () => {
-  const [wallet] = useAtom(walletAtom);
+  const [wallet, setWallet] = useAtom(walletAtom);
   const [themeMode, setThemeMode] = useAtom(themeAtom);
-  const [id, setId] = useState<string>('');
   const [amount, setAmount] = useState<string>('0');
   const [price, setPrice] = useState<string>('0');
   const [log, setLog] = useState<string>('');
@@ -43,7 +43,7 @@ const Home: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!wallet.id) {
+    if (!wallet.id || !wallet.seed || wallet.id === '' || wallet.seed === '') {
       navigate('/login');
     }
   }, [wallet.id]);
@@ -56,16 +56,6 @@ const Home: React.FC = () => {
   const { latestTick, fetchLatestTick } = useFetchLatestTick();
   const { assets, fetchOwnedAssets } = useOwnedAssets();
 
-  console.log('Order Tick', orderTick);
-  console.log('Latest Tick', latestTick);
-  console.log('Show Progress', showProgress);
-  console.log('Tab Index', tabIndex);
-  console.log('Tab Labels', tabLabels);
-  console.log('Ask Orders', askOrders);
-  console.log('Bid Orders', bidOrders);
-  console.log('Balance', balance);
-  console.log('Assets', assets);
-
   const changeAsset = useCallback(
     async (event: SelectChangeEvent<number>) => {
       const newIndex = Number(event.target.value);
@@ -75,15 +65,18 @@ const Home: React.FC = () => {
     [tabLabels, fetchOrders]
   );
 
-  useEffect(() => {
-    Promise.all([fetchBalance(id), fetchOwnedAssets(id), fetchLatestTick(), fetchOrders(tabLabels[tabIndex], ISSUER.get(tabLabels[tabIndex]) || 'QX')]);
-  }, [id, tabIndex, tabLabels, fetchBalance, fetchOrders]);
+  console.log('Balance', balance);
 
   useEffect(() => {
-    if (!id) return;
+    if (!wallet.id || wallet.id === '' || wallet.seed === '') return;
+    Promise.all([fetchBalance(wallet.id), fetchOwnedAssets(wallet.id), fetchLatestTick(), fetchOrders(tabLabels[tabIndex], ISSUER.get(tabLabels[tabIndex]) || 'QX')]);
+  }, [wallet.id, tabIndex, tabLabels, fetchBalance, fetchOrders]);
+
+  useEffect(() => {
+    if (!wallet.id || wallet.id === '' || wallet.seed === '') return;
 
     const intervalId = setInterval(async () => {
-      await Promise.all([fetchBalance(id), fetchOwnedAssets(id), fetchLatestTick()]);
+      await Promise.all([fetchBalance(wallet.id), fetchOwnedAssets(wallet.id), fetchLatestTick()]);
 
       if (showProgress && latestTick >= orderTick) {
         await fetchOrders(tabLabels[tabIndex], ISSUER.get(tabLabels[tabIndex]) || 'QX');
@@ -91,7 +84,7 @@ const Home: React.FC = () => {
     }, POLLING_INTERVAL);
 
     return () => clearInterval(intervalId);
-  }, [id, showProgress, orderTick, tabIndex, tabLabels, fetchBalance, fetchOrders]);
+  }, [wallet.id, showProgress, orderTick, tabIndex, tabLabels, fetchBalance, fetchOrders]);
 
   return (
     <Box sx={{ p: 3, maxWidth: 1200, margin: '0 auto' }}>
@@ -107,7 +100,7 @@ const Home: React.FC = () => {
         <Box sx={{ mb: 3 }}>
           <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
             <AccountBalanceWalletIcon />
-            Balance: {balance.balance} qus
+            Balance: {balance.balance || 0} qus
           </Typography>
           <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <TokenIcon />
@@ -117,7 +110,7 @@ const Home: React.FC = () => {
       )}
 
       <Box>
-        <Button variant="outlined" onClick={() => setId('')} sx={{ mb: 3 }}>
+        <Button variant="outlined" onClick={() => setWallet({ id: '', seed: '' })} sx={{ mb: 3 }}>
           Logout
         </Button>
 
@@ -155,11 +148,11 @@ const Home: React.FC = () => {
         <Typography variant="h6" sx={{ mb: 1 }}>
           Ask Orders
         </Typography>
-        <OrderTable orders={askOrders} type="Ask" id={id} tabLabels={tabLabels} tabIndex={tabIndex} placeOrder={placeOrder} />
+        <OrderTable orders={askOrders} type="Ask" id={wallet.id} tabLabels={tabLabels} tabIndex={tabIndex} placeOrder={placeOrder} />
         <Typography variant="h6" sx={{ mb: 1 }}>
           Bid Orders
         </Typography>
-        <OrderTable orders={bidOrders} type="Bid" id={id} tabLabels={tabLabels} tabIndex={tabIndex} placeOrder={placeOrder} />
+        <OrderTable orders={bidOrders} type="Bid" id={wallet.id} tabLabels={tabLabels} tabIndex={tabIndex} placeOrder={placeOrder} />
       </Box>
     </Box>
   );

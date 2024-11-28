@@ -1,13 +1,13 @@
 import { useState, useCallback } from 'react';
 import { Order } from '@/types';
-import { BASE_URL } from '@/constants';
+import { API_URL } from '@/constants';
 
 const useFetchAssetsOrders = () => {
   const [askOrders, setAskOrders] = useState<Order[]>([]);
   const [bidOrders, setBidOrders] = useState<Order[]>([]);
 
   const fetchAssetOrders = useCallback(async (assetName: string, issuerID: string, type: string, offset: number): Promise<Response> => {
-    return await fetch(`${BASE_URL}/v1/qx/getAsset${type}Orders?assetName=${assetName}&issuerId=${issuerID}&offset=${offset}`, { method: 'GET' });
+    return await fetch(`${API_URL}/v1/qx/getAsset${type}Orders?assetName=${assetName}&issuerId=${issuerID}&offset=${offset}`, { method: 'GET' });
   }, []);
 
   const fetchOrders = useCallback(

@@ -15,7 +15,7 @@ const useBalance = () => {
         },
       });
       const data = await response.json();
-      setBalance(data);
+      setBalance(data.balance);
     } catch (error) {
       console.error('Error fetching balance:', error);
     }
