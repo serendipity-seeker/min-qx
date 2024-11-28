@@ -1,4 +1,4 @@
-import { Button, FormControl, InputLabel, MenuItem, Select, TextField, IconButton, SelectChangeEvent } from '@mui/material';
+import { Button, FormControl, InputLabel, MenuItem, Select, TextField, IconButton, SelectChangeEvent, Paper, Container, Grid, Divider } from '@mui/material';
 import OrderTable from '@/components/OrderTable';
 import { LinearProgress, Box } from '@mui/material';
 import { Typography } from '@mui/material';
@@ -11,6 +11,7 @@ import {
   ShoppingCart as ShoppingCartIcon,
   Sell as SellIcon,
   Token as TokenIcon,
+  Logout as LogoutIcon,
 } from '@mui/icons-material';
 import { useAtom } from 'jotai';
 import { walletAtom } from '@/store/wallet';
@@ -86,36 +87,57 @@ const Home: React.FC = () => {
   }, [wallet.id, showProgress, orderTick, tabIndex, tabLabels, fetchBalance, fetchOrders]);
 
   return (
-    <Box sx={{ p: 3, maxWidth: 1200, margin: '0 auto' }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <CircleIcon sx={{ color: wallet.id ? 'success.main' : 'error.main' }} />
-          {wallet.id ? `ID: ${wallet.id}` : 'No ID Connected'}
-        </Typography>
-        <IconButton onClick={() => setThemeMode((prev) => (prev === 'light' ? 'dark' : 'light'))}>{themeMode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}</IconButton>
-      </Box>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+        <Grid container spacing={2} alignItems="center" justifyContent="space-between">
+          <Grid item xs={12} md="auto">
+            <Typography variant="h5" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CircleIcon sx={{ color: wallet.id ? 'success.main' : 'error.main' }} />
+              {wallet.id ? `ID: ${wallet.id.slice(0, 8)}...${wallet.id.slice(-8)}` : 'No ID Connected'}
+            </Typography>
+          </Grid>
+          <Grid item xs={12} md="auto" sx={{ display: 'flex', gap: 2 }}>
+            <Button variant="outlined" startIcon={<LogoutIcon />} onClick={() => setWallet({ id: '', seed: '' })} color="error">
+              Logout
+            </Button>
+            <IconButton onClick={() => setThemeMode((prev) => (prev === 'light' ? 'dark' : 'light'))} sx={{ bgcolor: 'action.hover', '&:hover': { bgcolor: 'action.selected' } }}>
+              {themeMode === 'light' ? <DarkModeIcon /> : <LightModeIcon />}
+            </IconButton>
+          </Grid>
+        </Grid>
+      </Paper>
 
       {wallet.id && (
-        <Box sx={{ mb: 3 }}>
-          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-            <AccountBalanceWalletIcon />
-            Balance: {balance?.balance || 0} qus
-          </Typography>
-          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <TokenIcon />
-            {tabLabels[tabIndex]}: {assets.get(tabLabels[tabIndex]) || 0} assets
-          </Typography>
-        </Box>
+        <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <AccountBalanceWalletIcon color="primary" />
+                Balance:{' '}
+                <Box component="span" sx={{ color: 'primary.main', fontWeight: 'bold' }}>
+                  {balance?.balance || 0}
+                </Box>{' '}
+                qus
+              </Typography>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <TokenIcon color="secondary" />
+                {tabLabels[tabIndex]}:{' '}
+                <Box component="span" sx={{ color: 'secondary.main', fontWeight: 'bold' }}>
+                  {assets.get(tabLabels[tabIndex]) || 0}
+                </Box>{' '}
+                assets
+              </Typography>
+            </Grid>
+          </Grid>
+        </Paper>
       )}
 
-      <Box>
-        <Button variant="outlined" onClick={() => setWallet({ id: '', seed: '' })} sx={{ mb: 3 }}>
-          Logout
-        </Button>
-
-        <FormControl fullWidth variant="outlined" sx={{ mb: 3 }}>
+      <Paper elevation={3} sx={{ p: 3, mb: 4 }}>
+        <FormControl sx={{ mb: 3, minWidth: 200 }}>
           <InputLabel>Token</InputLabel>
-          <Select value={tabIndex} onChange={changeAsset} label="Token" sx={{ maxWidth: 200 }}>
+          <Select value={tabIndex} onChange={changeAsset} label="Token">
             {tabLabels.map((label, index) => (
               <MenuItem value={index} key={index}>
                 {label}
@@ -124,36 +146,56 @@ const Home: React.FC = () => {
           </Select>
         </FormControl>
 
-        <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
-          <TextField label="Amount" value={amount} onChange={handleInputChange(setAmount)} variant="outlined" size="small" sx={{ width: 150 }} />
-          <TextField label="Price" value={price} onChange={handleInputChange(setPrice)} variant="outlined" size="small" sx={{ width: 150 }} />
-          <Button variant="contained" startIcon={<ShoppingCartIcon />} onClick={() => placeOrder(tabLabels[tabIndex], 'buy', Number(price), Number(amount))}>
-            Buy {tabLabels[tabIndex]}
-          </Button>
-          <Button variant="contained" color="secondary" startIcon={<SellIcon />} onClick={() => placeOrder(tabLabels[tabIndex], 'sell', Number(price), Number(amount))}>
-            Sell {tabLabels[tabIndex]}
-          </Button>
-        </Box>
+        <Grid container spacing={2} sx={{ mb: 3 }}>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField fullWidth label="Amount" value={amount} onChange={handleInputChange(setAmount)} variant="outlined" />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <TextField fullWidth label="Price" value={price} onChange={handleInputChange(setPrice)} variant="outlined" />
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Button fullWidth variant="contained" startIcon={<ShoppingCartIcon />} onClick={() => placeOrder(tabLabels[tabIndex], 'buy', Number(price), Number(amount))} sx={{ height: '100%' }}>
+              Buy {tabLabels[tabIndex]}
+            </Button>
+          </Grid>
+          <Grid item xs={12} sm={6} md={3}>
+            <Button
+              fullWidth
+              variant="contained"
+              color="secondary"
+              startIcon={<SellIcon />}
+              onClick={() => placeOrder(tabLabels[tabIndex], 'sell', Number(price), Number(amount))}
+              sx={{ height: '100%' }}
+            >
+              Sell {tabLabels[tabIndex]}
+            </Button>
+          </Grid>
+        </Grid>
 
         {showProgress && <LinearProgress sx={{ mb: 2 }} />}
 
-        <Typography variant="body2" sx={{ mb: 1 }}>
-          Last Action: {showProgress && log}
-        </Typography>
-        <Typography variant="body2" sx={{ mb: 3 }}>
-          Latest Tick: {latestTick}
-        </Typography>
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="body2" color="text.secondary">
+            Last Action: {showProgress && log}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Latest Tick: {latestTick}
+          </Typography>
+        </Box>
 
-        <Typography variant="h6" sx={{ mb: 1 }}>
+        <Divider sx={{ my: 3 }} />
+
+        <Typography variant="h6" sx={{ mb: 2, color: 'error.main' }}>
           Ask Orders
         </Typography>
         <OrderTable orders={askOrders} type="Ask" id={wallet.id} tabLabels={tabLabels} tabIndex={tabIndex} placeOrder={placeOrder} />
-        <Typography variant="h6" sx={{ mb: 1 }}>
+
+        <Typography variant="h6" sx={{ mt: 4, mb: 2, color: 'success.main' }}>
           Bid Orders
         </Typography>
         <OrderTable orders={bidOrders} type="Bid" id={wallet.id} tabLabels={tabLabels} tabIndex={tabIndex} placeOrder={placeOrder} />
-      </Box>
-    </Box>
+      </Paper>
+    </Container>
   );
 };
 
