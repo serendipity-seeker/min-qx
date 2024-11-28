@@ -23,7 +23,6 @@ import useFetchLatestTick from '@/hooks/useFectchlatestTick';
 import useOwnedAssets from '@/hooks/useOwnedAssets';
 import { POLLING_INTERVAL } from '@/constants';
 import { useNavigate } from 'react-router-dom';
-import { Balance } from '@/types';
 
 const handleInputChange = (setter: React.Dispatch<React.SetStateAction<string>>) => (event: React.ChangeEvent<HTMLInputElement>) => {
   const newValue = event.target.value;
@@ -50,7 +49,7 @@ const Home: React.FC = () => {
 
   const tabLabels = useMemo(() => [...ISSUER.keys()], []);
 
-  const { orderTick, showProgress, placeOrder } = usePlaceOrder();
+  const { orderTick, showProgress, setShowProgress, placeOrder } = usePlaceOrder();
   const { askOrders, bidOrders, fetchOrders } = useFetchAssetsOrders();
   const { balance, fetchBalance } = useBalance();
   const { latestTick, fetchLatestTick } = useFetchLatestTick();
@@ -65,8 +64,6 @@ const Home: React.FC = () => {
     [tabLabels, fetchOrders]
   );
 
-  console.log('Balance', balance);
-
   useEffect(() => {
     if (!wallet.id || wallet.id === '' || wallet.seed === '') return;
     Promise.all([fetchBalance(wallet.id), fetchOwnedAssets(wallet.id), fetchLatestTick(), fetchOrders(tabLabels[tabIndex], ISSUER.get(tabLabels[tabIndex]) || 'QX')]);
@@ -76,11 +73,13 @@ const Home: React.FC = () => {
     if (!wallet.id || wallet.id === '' || wallet.seed === '') return;
 
     const intervalId = setInterval(async () => {
-      await Promise.all([fetchBalance(wallet.id), fetchOwnedAssets(wallet.id), fetchLatestTick()]);
+      await Promise.all([fetchBalance(wallet.id), fetchOwnedAssets(wallet.id), fetchLatestTick(), fetchOrders(tabLabels[tabIndex], ISSUER.get(tabLabels[tabIndex]) || 'QX')]);
 
       if (showProgress && latestTick >= orderTick) {
         await fetchOrders(tabLabels[tabIndex], ISSUER.get(tabLabels[tabIndex]) || 'QX');
       }
+
+      setShowProgress(latestTick < orderTick);
     }, POLLING_INTERVAL);
 
     return () => clearInterval(intervalId);
@@ -100,7 +99,7 @@ const Home: React.FC = () => {
         <Box sx={{ mb: 3 }}>
           <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
             <AccountBalanceWalletIcon />
-            Balance: {balance.balance || 0} qus
+            Balance: {balance?.balance || 0} qus
           </Typography>
           <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <TokenIcon />

@@ -7,7 +7,6 @@ import { useCallback, useState } from 'react';
 import { QubicHelper } from '@qubic-lib/qubic-ts-library/dist/qubicHelper';
 import { useAtom } from 'jotai';
 import { walletAtom } from '../store/wallet';
-import { Balance } from '@/types';
 import { useNavigate } from 'react-router-dom';
 
 const Login: React.FC = () => {
@@ -21,7 +20,7 @@ const Login: React.FC = () => {
     const qubicPackage = await qubic.createIdPackage(seed);
     const newId = qubicPackage.publicId;
 
-    setWallet({ id: newId, seed, balance: {} as Balance });
+    setWallet({ id: newId, seed });
 
     navigate('/');
   }, [seed]);

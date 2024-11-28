@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 const useFetchLatestTick = () => {
   const [latestTick, setLatestTick] = useState<number>(0);
 
-  const fetchLatestTick = useCallback(async (): Promise<void> => {
+  const fetchLatestTick = useCallback(async (): Promise<number> => {
     try {
       const response = await fetch(`${BASE_URL}/v1/status`, {
         method: 'GET',
@@ -14,15 +14,18 @@ const useFetchLatestTick = () => {
         },
       });
       const data = await response.json();
-      setLatestTick(data['lastProcessedTick']['tickNumber']);
+      setLatestTick(data.lastProcessedTick.tickNumber);
+
+      return data.lastProcessedTick.tickNumber;
     } catch (error) {
       console.error('Error fetching latest tick:', error);
+      return 0;
     }
   }, []);
 
   return {
     latestTick,
-    fetchLatestTick
+    fetchLatestTick,
   };
 };
 

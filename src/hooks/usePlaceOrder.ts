@@ -10,13 +10,14 @@ import { walletAtom } from '@/store/wallet';
 import { useAtom } from 'jotai';
 
 const usePlaceOrder = () => {
-  const { latestTick, fetchLatestTick } = useFetchLatestTick();
   const [orderTick, setOrderTick] = useState(0);
   const [showProgress, setShowProgress] = useState(false);
   const [wallet] = useAtom(walletAtom);
+  const { latestTick, fetchLatestTick } = useFetchLatestTick();
 
   const placeOrder = useCallback(
     async (asset: string, type: 'buy' | 'sell' | 'rmBuy' | 'rmSell', price: number, amount: number): Promise<void> => {
+      const latestTick = await fetchLatestTick();
       setOrderTick(latestTick + TICK_OFFSET);
       setShowProgress(true);
 
@@ -31,12 +32,15 @@ const usePlaceOrder = () => {
 
       const transaction = await createQXOrderTx(wallet.id, wallet.seed, latestTick + TICK_OFFSET, orderPayload, actionType);
 
-      await broadcastTx(transaction);
+      const res = await broadcastTx(transaction);
+      const data = await res.json();
+      if (data.code > 0) setShowProgress(false);
+      console.log(data);
     },
-    [latestTick, fetchLatestTick, setOrderTick, setShowProgress, createQXOrderPayload, broadcastTx]
+    [fetchLatestTick, setOrderTick, setShowProgress, createQXOrderPayload, broadcastTx]
   );
 
-  return { orderTick, showProgress, placeOrder };
+  return { orderTick, showProgress, setShowProgress, placeOrder };
 };
 
 export default usePlaceOrder;
