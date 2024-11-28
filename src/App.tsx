@@ -21,6 +21,7 @@ import {
   ThemeProvider,
   createTheme,
   CssBaseline,
+  SelectChangeEvent,
 } from '@mui/material';
 
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -48,7 +49,7 @@ const BASE_URL = 'https://rpc.qubic.org';
 const TICK_OFFSET = 5;
 const POLLING_INTERVAL = 5000;
 
-const ISSUER = new Map([
+const ISSUER = new Map<string, string>([
   ['QX', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFXIB'],
   ['RANDOM', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFXIB'],
   ['QUTIL', 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFXIB'],
@@ -61,7 +62,38 @@ const ISSUER = new Map([
   ['QCAP', 'QCAPWMYRSHLBJHSTTZQVCIBARVOASKDENASAKNOBRGPFWWKRCUVUAXYEZVOG'],
 ]);
 
-const getTheme = (mode) =>
+interface Order {
+  entityId: string;
+  price: number;
+  numberOfShares: number;
+}
+
+interface OwnedAsset {
+  data: {
+    issuedAsset: {
+      name: string;
+    };
+    numberOfUnits: number;
+  };
+}
+
+interface Balance {
+  id: string;
+  balance: string;
+  validForTick: number;
+  latestIncomingTransferTick: number;
+  latestOutgoingTransferTick: number;
+  incomingAmount: string;
+  outgoingAmount: string;
+  numberOfIncomingTransfers: number;
+  numberOfOutgoingTransfers: number;
+}
+
+interface ThemeMode {
+  mode: 'light' | 'dark';
+}
+
+const getTheme = (mode: 'light' | 'dark') =>
   createTheme({
     palette: {
       mode,
@@ -97,40 +129,41 @@ const getTheme = (mode) =>
     },
   });
 
-const App = () => {
-  const [id, setId] = useState('');
-  const [balance, setBalance] = useState(0);
-  const [assets, setAssets] = useState(new Map());
-  const [amount, setAmount] = useState(0);
-  const [price, setPrice] = useState(0);
-  const [seed, setSeed] = useState('');
-  const [showSeed, setShowSeed] = useState(false);
-  const [latestTick, setLatestTick] = useState(0);
-  const [log, setLog] = useState('');
-  const [orderTick, setOrderTick] = useState(0);
-  const [showProgress, setShowProgress] = useState(false);
-  const [askOrders, setAskOrders] = useState([]);
-  const [bidOrders, setBidOrders] = useState([]);
-  const [tabIndex, setTabIndex] = useState(0);
-  const [themeMode, setThemeMode] = useState('light');
+const App: React.FC = () => {
+  const [id, setId] = useState<string>('');
+  const [balance, setBalance] = useState<Balance>({} as Balance);
+  const [assets, setAssets] = useState<Map<string, number>>(new Map());
+  const [amount, setAmount] = useState<string>('0');
+  const [price, setPrice] = useState<string>('0');
+  const [seed, setSeed] = useState<string>('');
+  const [showSeed, setShowSeed] = useState<boolean>(false);
+  const [latestTick, setLatestTick] = useState<number>(0);
+  const [log, setLog] = useState<string>('');
+  const [orderTick, setOrderTick] = useState<number>(0);
+  const [showProgress, setShowProgress] = useState<boolean>(false);
+  const [askOrders, setAskOrders] = useState<Order[]>([]);
+  const [bidOrders, setBidOrders] = useState<Order[]>([]);
+  const [tabIndex, setTabIndex] = useState<number>(0);
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
 
   const theme = useMemo(() => getTheme(themeMode), [themeMode]);
   const tabLabels = useMemo(() => [...ISSUER.keys()], []);
 
-  const valueOfAssetName = useCallback((asset) => {
+  const valueOfAssetName = useCallback((asset: string): bigint => {
     const bytes = new Uint8Array(8);
     bytes.set(new TextEncoder().encode(asset));
     return new DataView(bytes.buffer).getBigInt64(0, true);
   }, []);
-  const fetchAssetOrders = useCallback(async (assetName, issuerID, type, offset) => {
+
+  const fetchAssetOrders = useCallback(async (assetName: string, issuerID: string, type: string, offset: number): Promise<Response> => {
     return await fetch(`${API_URL}/v1/qx/getAsset${type}Orders?assetName=${assetName}&issuerId=${issuerID}&offset=${offset}`, { method: 'GET' });
   }, []);
 
   const createQXOrderPayload = useCallback(
-    (issuer, assetName, price, numberOfShares) => {
+    (issuer: string, assetName: string, price: number, numberOfShares: number): QubicTransferQXOrderPayload => {
       return new QubicTransferQXOrderPayload({
         issuer: new PublicKey(issuer),
-        assetName: new Long(valueOfAssetName(assetName)),
+        assetName: new Long(Number(valueOfAssetName(assetName))),
         price: new Long(price),
         numberOfShares: new Long(numberOfShares),
       });
@@ -138,32 +171,35 @@ const App = () => {
     [valueOfAssetName]
   );
 
-  const createQXOrderTransaction = useCallback(async (senderId, senderSeed, targetTick, payload, actionType) => {
-    const transaction = new QubicTransaction()
-      .setSourcePublicKey(new PublicKey(senderId))
-      .setDestinationPublicKey(QubicDefinitions.QX_ADDRESS)
-      .setTick(targetTick)
-      .setInputSize(payload.getPackageSize())
-      .setAmount(new Long(0))
-      .setInputType(actionType)
-      .setPayload(payload);
+  const createQXOrderTransaction = useCallback(
+    async (senderId: string, senderSeed: string, targetTick: number, payload: QubicTransferQXOrderPayload, actionType: number): Promise<QubicTransaction> => {
+      const transaction = new QubicTransaction()
+        .setSourcePublicKey(new PublicKey(senderId))
+        .setDestinationPublicKey(QubicDefinitions.QX_ADDRESS)
+        .setTick(targetTick)
+        .setInputSize(payload.getPackageSize())
+        .setAmount(new Long(0))
+        .setInputType(actionType)
+        .setPayload(payload);
 
-    switch (actionType) {
-      case QubicDefinitions.QX_ADD_BID_ORDER:
-        transaction.setAmount(new Long(payload.getTotalAmount()));
-        break;
-      case QubicDefinitions.QX_ADD_ASK_ORDER:
-      case QubicDefinitions.QX_REMOVE_BID_ORDER:
-      case QubicDefinitions.QX_REMOVE_ASK_ORDER:
-        transaction.setAmount(new Long(0));
-        break;
-    }
+      switch (actionType) {
+        case QubicDefinitions.QX_ADD_BID_ORDER:
+          transaction.setAmount(new Long(payload.getTotalAmount()));
+          break;
+        case QubicDefinitions.QX_ADD_ASK_ORDER:
+        case QubicDefinitions.QX_REMOVE_BID_ORDER:
+        case QubicDefinitions.QX_REMOVE_ASK_ORDER:
+          transaction.setAmount(new Long(0));
+          break;
+      }
 
-    await transaction.build(senderSeed);
-    return transaction;
-  }, []);
+      await transaction.build(senderSeed);
+      return transaction;
+    },
+    []
+  );
 
-  const broadcastTransaction = useCallback(async (transaction) => {
+  const broadcastTransaction = useCallback(async (transaction: QubicTransaction): Promise<Response> => {
     const encodedTransaction = transaction.encodeTransactionToBase64(transaction.getPackageData());
 
     return await fetch(`${BASE_URL}/v1/broadcast-transaction`, {
@@ -177,7 +213,7 @@ const App = () => {
   }, []);
 
   const qBalance = useCallback(
-    async (ID) => {
+    async (ID?: string): Promise<{ balance: Balance }> => {
       const response = await fetch(`${BASE_URL}/v1/balances/${ID || id}`, {
         method: 'GET',
         headers: {
@@ -185,22 +221,22 @@ const App = () => {
           Accept: 'application/json',
         },
       });
-      const data = await response.json();
-      return data['balance'];
+      console.log(response);
+      return await response.json();
     },
     [id]
   );
 
   const qFetchAssetOrders = useCallback(
-    async (assetName, type) => {
-      const response = await fetchAssetOrders(assetName, ISSUER.get(assetName), type, 0);
+    async (assetName: string, type: 'Ask' | 'Bid'): Promise<Order[]> => {
+      const response = await fetchAssetOrders(assetName, ISSUER.get(assetName) || '', type, 0);
       const data = await response.json();
       return type === 'Ask' ? data['orders'].reverse() : data['orders'];
     },
     [fetchAssetOrders]
   );
 
-  const qFetchLatestTick = useCallback(async () => {
+  const qFetchLatestTick = useCallback(async (): Promise<number> => {
     const response = await fetch(`${BASE_URL}/v1/status`, {
       method: 'GET',
       headers: {
@@ -213,7 +249,7 @@ const App = () => {
   }, []);
 
   const qOwnedAssets = useCallback(
-    async (ID) => {
+    async (ID?: string): Promise<OwnedAsset[]> => {
       const response = await fetch(`${BASE_URL}/v1/assets/${ID || id}/owned`, {
         method: 'GET',
         headers: {
@@ -227,7 +263,7 @@ const App = () => {
     [id]
   );
 
-  const qLogin = useCallback(async () => {
+  const qLogin = useCallback(async (): Promise<void> => {
     const qubic = await new QubicHelper();
     const qubicPackage = await qubic.createIdPackage(seed);
     const newId = qubicPackage.publicId;
@@ -249,12 +285,12 @@ const App = () => {
   }, [seed, tabIndex, tabLabels, qBalance, qOwnedAssets, qFetchLatestTick, qFetchAssetOrders]);
 
   const qOrder = useCallback(
-    async (asset, type, rmPrice, rmAmount) => {
+    async (asset: string, type: 'buy' | 'sell' | 'rmBuy' | 'rmSell', rmPrice?: number, rmAmount?: number): Promise<string> => {
       const latestTick = await qFetchLatestTick();
       setOrderTick(latestTick + TICK_OFFSET);
       setShowProgress(true);
 
-      const orderPayload = createQXOrderPayload(ISSUER.get(asset), asset, rmPrice || price, rmAmount || amount);
+      const orderPayload = createQXOrderPayload(ISSUER.get(asset) || '', asset, rmPrice || Number(price), rmAmount || Number(amount));
 
       const actionType = {
         buy: QubicDefinitions.QX_ADD_BID_ORDER,
@@ -295,7 +331,7 @@ const App = () => {
   }, [id, showProgress, orderTick, tabIndex, tabLabels, qBalance, qOwnedAssets, qFetchLatestTick, qFetchAssetOrders]);
 
   const handleInputChange = useCallback(
-    (setter) => (event) => {
+    (setter: React.Dispatch<React.SetStateAction<string>>) => (event: React.ChangeEvent<HTMLInputElement>) => {
       const newValue = event.target.value;
       if (/^\d*$/.test(newValue)) {
         setter(newValue);
@@ -305,8 +341,8 @@ const App = () => {
   );
 
   const changeAsset = useCallback(
-    async (event) => {
-      const newIndex = event.target.value;
+    async (event: SelectChangeEvent<number>) => {
+      const newIndex = Number(event.target.value);
       setTabIndex(newIndex);
       const [askData, bidData] = await Promise.all([qFetchAssetOrders(tabLabels[newIndex], 'Ask'), qFetchAssetOrders(tabLabels[newIndex], 'Bid')]);
       setAskOrders(askData);
@@ -316,7 +352,7 @@ const App = () => {
   );
 
   const renderOrderTable = useCallback(
-    (orders, type) => (
+    (orders: Order[], type: 'Ask' | 'Bid') => (
       <TableContainer component={Paper} sx={{ mt: 2, mb: 3 }}>
         <Table size="small">
           <TableHead>
@@ -375,7 +411,7 @@ const App = () => {
           <Box sx={{ mb: 3 }}>
             <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
               <AccountBalanceWalletIcon />
-              Balance: {balance} qus
+              Balance: {balance.balance} qus
             </Typography>
             <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <TokenIcon />

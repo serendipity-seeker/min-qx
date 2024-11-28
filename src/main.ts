@@ -1,22 +1,21 @@
-const { app, BrowserWindow, session } = require("electron");
-const path = require("path");
+import { app, BrowserWindow, session } from 'electron';
+import * as path from 'path';
 
-function createWindow() {
+function createWindow(): void {
   const win = new BrowserWindow({
     width: 1200,
     height: 1000,
-    title: "Min QX",
+    title: 'Min QX',
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      enableRemoteModule: false,
       webSecurity: true,
     },
   });
 
   win.webContents.openDevTools();
 
-  win.loadURL("http://localhost:5173"); // Vite default port
+  win.loadURL('http://localhost:5173'); // Vite default port
 
   // const curSession = win.webContents.session;
 
@@ -33,13 +32,13 @@ function createWindow() {
 
 app.whenReady().then(createWindow);
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
-app.on("activate", () => {
+app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
