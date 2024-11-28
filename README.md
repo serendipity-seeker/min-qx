@@ -4,6 +4,8 @@ A basic and minimal UI for Qubic's QX
 
 # installation
 
+## latest version and improved UI -> https://github.com/serendipity-seeker/min-qx
+
 - use BINARY
 
 or
