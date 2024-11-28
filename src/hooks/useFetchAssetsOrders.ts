@@ -18,11 +18,8 @@ const useFetchAssetsOrders = () => {
         const askData = await askResponse.json();
         const bidData = await bidResponse.json();
 
-        console.log("Ask Data", askData);
-        console.log("Bid Data", bidData);
-
-        setAskOrders(askData.orders);
-        setBidOrders(bidData.orders);
+        setAskOrders(askData.orders || []);
+        setBidOrders(bidData.orders || []);
       } catch (error) {
         console.error('Error fetching orders:', error);
       }
