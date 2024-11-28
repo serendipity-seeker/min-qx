@@ -13,7 +13,7 @@ function createWindow(): void {
     },
   });
 
-  win.webContents.openDevTools();
+  // win.webContents.openDevTools();
 
   win.loadURL('http://localhost:5173'); // Vite default port
 
