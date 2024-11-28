@@ -13,7 +13,7 @@ const usePlaceOrder = () => {
   const [orderTick, setOrderTick] = useState(0);
   const [showProgress, setShowProgress] = useState(false);
   const [wallet] = useAtom(walletAtom);
-  const { latestTick, fetchLatestTick } = useFetchLatestTick();
+  const { fetchLatestTick } = useFetchLatestTick();
 
   const placeOrder = useCallback(
     async (asset: string, type: 'buy' | 'sell' | 'rmBuy' | 'rmSell', price: number, amount: number): Promise<void> => {
@@ -34,8 +34,7 @@ const usePlaceOrder = () => {
 
       const res = await broadcastTx(transaction);
       const data = await res.json();
-      if (data.code > 0) setShowProgress(false);
-      console.log(data);
+      if (data.code) setShowProgress(false);
     },
     [fetchLatestTick, setOrderTick, setShowProgress, createQXOrderPayload, broadcastTx]
   );

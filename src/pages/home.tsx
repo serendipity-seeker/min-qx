@@ -74,7 +74,7 @@ const Home: React.FC = () => {
     if (!wallet.id || wallet.id === '' || wallet.seed === '') return;
 
     const intervalId = setInterval(async () => {
-      await Promise.all([fetchBalance(wallet.id), fetchOwnedAssets(wallet.id), fetchLatestTick(), fetchOrders(tabLabels[tabIndex], ISSUER.get(tabLabels[tabIndex]) || 'QX')]);
+      const [, , latestTick] = await Promise.all([fetchBalance(wallet.id), fetchOwnedAssets(wallet.id), fetchLatestTick(), fetchOrders(tabLabels[tabIndex], ISSUER.get(tabLabels[tabIndex]) || 'QX')]);
 
       if (showProgress && latestTick >= orderTick) {
         await fetchOrders(tabLabels[tabIndex], ISSUER.get(tabLabels[tabIndex]) || 'QX');
